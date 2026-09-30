@@ -2,8 +2,11 @@
   // data.js
   var STORAGE_KEYS = {
     PRODUCTS: "bpositive_products",
-    ORDERS: "bpositive_orders"
+    ORDERS: "bpositive_orders",
+    CURRENCY_VERSION: "bpositive_currency_version"
   };
+  var USD_TO_INR = 96.063464;
+  var INR_CURRENCY_VERSION = "inr-2026-09";
   var CATEGORIES = ["Mobiles", "Laptops", "Tablets", "Earbuds", "Accessories"];
   var BRANDS = ["Apple", "Samsung", "Xiaomi", "OnePlus", "Sony", "Dell"];
   var SEED_PRODUCTS = [
@@ -56,13 +59,42 @@
     getProducts() {
       const raw = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
       if (!raw) {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
-        return [...SEED_PRODUCTS];
+        const products = SEED_PRODUCTS.map((product) => ({
+          ...product,
+          price: Math.round(product.price * USD_TO_INR),
+          originalPrice: product.originalPrice ? Math.round(product.originalPrice * USD_TO_INR) : product.originalPrice
+        }));
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+        localStorage.setItem(STORAGE_KEYS.CURRENCY_VERSION, INR_CURRENCY_VERSION);
+        return products;
       }
       try {
-        return JSON.parse(raw);
+        const products = JSON.parse(raw);
+        if (localStorage.getItem(STORAGE_KEYS.CURRENCY_VERSION) !== INR_CURRENCY_VERSION) {
+          products.forEach((product) => {
+            if (product.price != null && Number.isFinite(Number(product.price))) product.price = Math.round(Number(product.price) * USD_TO_INR);
+            if (product.originalPrice != null && Number.isFinite(Number(product.originalPrice))) product.originalPrice = Math.round(Number(product.originalPrice) * USD_TO_INR);
+          });
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+          try {
+            const orders = JSON.parse(localStorage.getItem(STORAGE_KEYS.ORDERS) || "[]");
+            orders.forEach((order) => {
+              if (order.productPrice != null && Number.isFinite(Number(order.productPrice))) order.productPrice = Math.round(Number(order.productPrice) * USD_TO_INR);
+            });
+            localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+          } catch (e) {}
+          localStorage.setItem(STORAGE_KEYS.CURRENCY_VERSION, INR_CURRENCY_VERSION);
+        }
+        return products;
       } catch (e) {
-        return [...SEED_PRODUCTS];
+        const products = SEED_PRODUCTS.map((product) => ({
+          ...product,
+          price: Math.round(product.price * USD_TO_INR),
+          originalPrice: product.originalPrice ? Math.round(product.originalPrice * USD_TO_INR) : product.originalPrice
+        }));
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+        localStorage.setItem(STORAGE_KEYS.CURRENCY_VERSION, INR_CURRENCY_VERSION);
+        return products;
       }
     },
     saveProducts(products) {
@@ -123,6 +155,10 @@
       return cats.length > 0 ? cats : [...CATEGORIES];
     }
   };
+  function formatPrice(amount) {
+    const value = Number(amount) || 0;
+    return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  }
 
   // components.js
   var ICONS = {
@@ -181,7 +217,7 @@
                   <span class="brand-featured-copy">
                     <span class="brand-featured-tag">Latest added</span>
                     <span class="brand-featured-name">${latestProduct.name}</span>
-                    <span class="brand-featured-price">$${latestProduct.price}</span>
+                    <span class="brand-featured-price">${formatPrice(latestProduct.price)}</span>
                   </span>
                 </button>
               ` : ""}
@@ -232,10 +268,10 @@
         <div class="product-card-subtitle">${product.brand} \xB7 ${product.category}</div>
         <div class="product-card-price">
           ${hasSale ? `
-            <span class="price-sale">$${product.price}</span>
-            <span class="price-strike">$${product.originalPrice}</span>
+            <span class="price-sale">${formatPrice(product.price)}</span>
+            <span class="price-strike">${formatPrice(product.originalPrice)}</span>
             <span class="price-sale caption-sm">${Math.round((1 - product.price / product.originalPrice) * 100)}% off</span>
-          ` : `$${product.price}`}
+          ` : formatPrice(product.price)}
         </div>
       </div>
     </div>
@@ -254,7 +290,7 @@
           <div class="product-summary-info">
             <div class="body-strong">${product.name}</div>
             <div class="caption-md text-mute">${product.brand} \xB7 ${product.category}</div>
-            <div class="body-strong" style="margin-top:4px">$${product.price}</div>
+            <div class="body-strong" style="margin-top:4px">${formatPrice(product.price)}</div>
           </div>
         </div>
         <form id="buyForm" novalidate>
@@ -352,7 +388,7 @@
         </div>
         <div class="footer-bottom">
           <span class="text-utility">\xA9 2026 b-positive. All rights reserved.</span>
-          <span class="text-utility">United States \xB7 English \xB7 USD</span>
+          <span class="text-utility">India \xB7 English \xB7 INR</span>
         </div>
       </div>
     </footer>
@@ -532,20 +568,24 @@
               Any Price
             </label>
             <label class="filter-option">
-              <input type="radio" name="price" value="100" ${state.filterMaxPrice === 100 ? "checked" : ""} />
-              Under $100
+              <input type="radio" name="price" value="10000" ${state.filterMaxPrice === 10000 ? "checked" : ""} />
+              Under ₹10,000
             </label>
             <label class="filter-option">
-              <input type="radio" name="price" value="300" ${state.filterMaxPrice === 300 ? "checked" : ""} />
-              Under $300
+              <input type="radio" name="price" value="30000" ${state.filterMaxPrice === 30000 ? "checked" : ""} />
+              Under ₹30,000
             </label>
             <label class="filter-option">
-              <input type="radio" name="price" value="800" ${state.filterMaxPrice === 800 ? "checked" : ""} />
-              Under $800
+              <input type="radio" name="price" value="80000" ${state.filterMaxPrice === 80000 ? "checked" : ""} />
+              Under ₹80,000
             </label>
             <label class="filter-option">
-              <input type="radio" name="price" value="1500" ${state.filterMaxPrice === 1500 ? "checked" : ""} />
-              Under $1500
+              <input type="radio" name="price" value="150000" ${state.filterMaxPrice === 150000 ? "checked" : ""} />
+              Under ₹1,50,000
+            </label>
+            <label class="filter-option">
+              <input type="radio" name="price" value="250000" ${state.filterMaxPrice === 250000 ? "checked" : ""} />
+              Under ₹2,50,000
             </label>
           </div>
         </aside>
@@ -762,7 +802,7 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label" for="ap_price">Price ($)</label>
+            <label class="form-label" for="ap_price">Price (₹)</label>
             <input class="form-input" type="number" id="ap_price" placeholder="999" min="0" step="1" />
           </div>
           <div class="form-group">
@@ -806,7 +846,7 @@
                 <td>${p.brand}</td>
                 <td>${p.category}</td>
                 <td>
-                  ${p.originalPrice ? `<span class="price-sale">$${p.price}</span> <span class="price-strike">$${p.originalPrice}</span>` : `$${p.price}`}
+                  ${p.originalPrice ? `<span class="price-sale">${formatPrice(p.price)}</span> <span class="price-strike">${formatPrice(p.originalPrice)}</span>` : formatPrice(p.price)}
                 </td>
                 <td>
                   <button class="btn-danger" data-delete-product="${p.id}">${ICONS.trash} Delete</button>
@@ -856,7 +896,7 @@
                   </td>
                   <td>
                     <div class="body-strong">${o.productName}</div>
-                    <div class="caption-md text-mute">$${o.productPrice}</div>
+                    <div class="caption-md text-mute">${formatPrice(o.productPrice)}</div>
                     ${o.notes ? `<div class="caption-md text-mute" style="margin-top:4px;max-width:200px">Note: ${o.notes}</div>` : ""}
                   </td>
                   <td>${date}</td>
